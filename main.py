@@ -96,7 +96,7 @@ def check_credentials(credentials: HTTPBasicCredentials = Depends(security)):
     '''Helper function for username/password check'''
     valid_username = secrets.compare_digest(credentials.username, "4dm1n")
     valid_password = secrets.compare_digest(credentials.password, "NotSoSecurePa$$")
-    if not valid_password and valid_username:
+    if not (valid_password and valid_username):
         status_code = 401
     else:
         status_code = 200
