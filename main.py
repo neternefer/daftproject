@@ -89,7 +89,7 @@ def get_hello(request: Request):
     current_date = datetime.now()
     str_date = current_date.strftime("%Y-%m-%d")
     return templates.TemplateResponse("index.html.j2", {
-        "request": request, "message": f"Hello! Today date is", "my_date": str_date})
+        "request": request, "message": f"Hello! Today date is {str_date}")
 
 #3.2
 def check_credentials(credentials: HTTPBasicCredentials = Depends(security)):
@@ -101,7 +101,7 @@ def check_credentials(credentials: HTTPBasicCredentials = Depends(security)):
     else:
         status_code = 200
     return {"status_code": status_code,
-            "valid_username": valid_username,
+            "valatid_username": valid_username,
             "valid_password": valid_password}
 
 @app.post("/login_session")
