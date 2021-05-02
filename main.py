@@ -89,7 +89,7 @@ def get_hello(request: Request):
     current_date = datetime.now()
     str_date = current_date.strftime("%Y-%m-%d")
     return templates.TemplateResponse("index.html.j2", {
-        "request": request, "message": f"Hello! Today date is {str_date}")
+        "request": request, "message": f"Hello! Today date is {str_date}"})
 
 #3.2
 def check_credentials(credentials: HTTPBasicCredentials = Depends(security)):
