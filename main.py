@@ -104,7 +104,7 @@ def check_credentials(credentials: HTTPBasicCredentials = Depends(security)):
             "valid_username": valid_username,
             "valid_password": valid_password}
 
-@app.post("/login_session")
+@app.post("/login_session", status_code=201)
 def login_session(response: Response, authorized: dict = Depends(check_credentials)):
     if authorized["status_code"] == 200:
         secret_key = secrets.token_hex(16)
@@ -117,7 +117,7 @@ def login_session(response: Response, authorized: dict = Depends(check_credentia
             headers={"WWW-Authenticate": "Basic"})
     return {"message": "Session established"}
 
-@app.post("/login_token")
+@app.post("/login_token", status_code=201)
 def login_token(authorized: dict = Depends(check_credentials)):
     if authorized["status_code"] == 200:
         secret_key = secrets.token_hex(16)
