@@ -101,7 +101,7 @@ def check_credentials(credentials: HTTPBasicCredentials = Depends(security)):
     else:
         status_code = 200
     return {"status_code": status_code,
-            "valatid_username": valid_username,
+            "valid_username": valid_username,
             "valid_password": valid_password}
 
 @app.post("/login_session")
