@@ -1,12 +1,13 @@
 import secrets
 from datetime import date, datetime, timedelta
 from fastapi import Cookie, Depends, FastAPI, HTTPException, Query, Request, Response, status
-from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
 from hashlib import sha256, sha512
 from pydantic import BaseModel
 from typing import Dict, Optional
-
 
 class Patient(BaseModel):
     id: Optional[int] = 1
@@ -30,12 +31,13 @@ class Message:
             message = PlainTextResponse(f"{self.word}!", status_code=200)
         return message
 
-
 app = FastAPI()
 app.counter: int = 1
+app.mount("/static", StaticFiles(directory="static"), name="static")
 app.session_cookie_token = ""
 app.session_token = ""
 app.storage: Dict[int, Patient] = {}
+templates = Jinja2Templates(directory="templates")
 security = HTTPBasic()
 
 #1.1
@@ -83,10 +85,11 @@ def show_patient(id: int, response: Response):
 
 #3.1
 @app.get("/hello", response_class=HTMLResponse)
-def get_hello():
+def get_hello(request: Request):
     current_date = datetime.now()
     str_date = current_date.strftime("%Y-%m-%d")
-    return f'<h1>Hello! Today date is {str_date}</h1>'
+    return templates.TemplateResponse("index.html.j2", {
+        "request": request, "message": f"Hello! Today date is", "my_date": str_date})
 
 #3.2
 def check_credentials(credentials: HTTPBasicCredentials = Depends(security)):
@@ -164,5 +167,8 @@ def logout_token(token: Optional[str] = Query(None)):
 def logged_out(is_format: Message = Depends(Message)):
     is_format.word = "Logged out"
     return is_format.return_message()
+
+
+
 
 
