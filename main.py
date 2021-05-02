@@ -124,8 +124,8 @@ def login_token(authorized: dict = Depends(check_credentials)):
     if authorized["status_code"] == 200:
         secret_key = secrets.token_hex(16)
         token_value = sha256(f'{authorized["valid_username"]}{authorized["valid_password"]}{secret_key}'.encode()).hexdigest()
-        if len(app.session_cookie_tokens) >= 3:
-            del app.session_cookie_tokens[0]
+        if len(app.session_tokens) >= 3:
+            del app.session_tokens[0]
         app.session_tokens.append(token_value)
     elif authorized["status_code"] == 401:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
