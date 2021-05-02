@@ -17,7 +17,7 @@ class Patient(BaseModel):
     vaccination_date: Optional[date]
 
 class Message:
-    def __init__(self, format: Optional[str] = Query(None)):
+    def __init__(self, format: Optional[str] = Query("")):
         self.format = format
         self.word = ""
 
@@ -34,8 +34,8 @@ class Message:
 app = FastAPI()
 app.counter: int = 1
 app.mount("/static", StaticFiles(directory="static"), name="static")
-app.session_cookie_token = ""
-app.session_token = ""
+app.session_cookie_tokens = []
+app.session_tokens = []
 app.storage: Dict[int, Patient] = {}
 templates = Jinja2Templates(directory="templates")
 security = HTTPBasic()
@@ -109,7 +109,7 @@ def login_session(response: Response, authorized: dict = Depends(check_credentia
     if authorized["status_code"] == 200:
         secret_key = secrets.token_hex(16)
         session_token = sha256(f'{authorized["valid_username"]}{authorized["valid_password"]}{secret_key}'.encode()).hexdigest()
-        app.session_cookie_token = session_token
+        app.session_cookie_tokens.append(session_token)
         response.set_cookie(key="session_token", value=session_token)
     elif authorized["status_code"] == 401:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
@@ -122,7 +122,7 @@ def login_token(authorized: dict = Depends(check_credentials)):
     if authorized["status_code"] == 200:
         secret_key = secrets.token_hex(16)
         token_value = sha256(f'{authorized["valid_username"]}{authorized["valid_password"]}{secret_key}'.encode()).hexdigest()
-        app.session_token = token_value
+        app.session_tokens.append(token_value)
     elif authorized["status_code"] == 401:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
@@ -132,7 +132,7 @@ def login_token(authorized: dict = Depends(check_credentials)):
 #3.3
 @app.get("/welcome_session")
 def welcome_session(session_token: str = Cookie(None), is_format: Message = Depends(Message)):
-    if not session_token or session_token != app.session_cookie_token:
+    if not session_token or session_token not in app.session_cookie_tokens:
         raise HTTPException(status_code=401, detail="Unathorised")
     else:
         is_format.word = "Welcome"
@@ -140,7 +140,7 @@ def welcome_session(session_token: str = Cookie(None), is_format: Message = Depe
 
 @app.get("/welcome_token")
 def welcome_token(token: Optional[str] = Query(None), is_format: Message = Depends(Message)):
-    if not token or token != app.session_token:
+    if not token or token not in app.session_tokens:
         raise HTTPException(status_code=401, detail="Unathorised")
     else:
         is_format.word = "Welcome"
@@ -148,20 +148,22 @@ def welcome_token(token: Optional[str] = Query(None), is_format: Message = Depen
 
 #3.4
 @app.delete("/logout_session")
-def logout_session(session_token: str = Cookie(None)):
-    if not session_token or session_token != app.session_cookie_token:
+def logout_session(session_token: str = Cookie(None), format: str = Query("")):
+    if not session_token or session_token not in app.session_cookie_tokens:
         raise HTTPException(status_code=401, detail="Unathorised")
     else:
-        app.session_cookie_token = ""
-        return RedirectResponse("/logged_out", status_code=302)
+        app.session_cookie_tokens.remove(session_token)
+        url = f"/logged_out?format={format}"
+        return RedirectResponse(url=url, status_code=303)
 
 @app.delete("/logout_token")
-def logout_token(token: Optional[str] = Query(None)):
-    if not token or token != app.session_token:
+def logout_token(token: Optional[str] = Query(None), format: str = Query("")):
+    if not token or token not in app.session_tokens:
         raise HTTPException(status_code=401, detail="Unathorised")
     else:
-        app.session_token = ""
-        return RedirectResponse("/logged_out", status_code=302)
+        app.session_tokens.remove(token)
+        url = f"/logged_out?format={format}"
+        return RedirectResponse(url=url, status_code=303)
 
 @app.get("/logged_out")
 def logged_out(is_format: Message = Depends(Message)):
