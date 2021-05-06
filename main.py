@@ -1,4 +1,4 @@
-import secrets
+import secrets, sqlite3
 from datetime import date, datetime, timedelta
 from fastapi import Cookie, Depends, FastAPI, HTTPException, Query, Request, Response, status
 from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse
@@ -173,6 +173,28 @@ def logout_token(token: Optional[str] = Query(None), format: str = Query("")):
 def logged_out(is_format: Message = Depends(Message)):
     is_format.word = "Logged out"
     return is_format.return_message()
+
+#4.1
+@app.on_event("startup")
+async def startup():
+    app.db_connection = sqlite3.connect("northwind.db")
+    app.db_connection.text_factory = lambda b: b.decode(errors="ignore")  # northwind specific
+
+
+@app.on_event("shutdown")
+async def shutdown():
+    app.db_connection.close()
+
+#4.1
+@app.get("/categories", status_code=200)
+async def get_categories():
+    cursor = app.db_connection.cursor()
+    pass
+
+@app.get("/customers", status_code=200)
+async def get_customers():
+    cursor = app.db_connection.cursor()
+    pass
 
 
 
