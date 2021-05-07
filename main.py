@@ -196,6 +196,39 @@ async def get_customers():
     cursor = app.db_connection.cursor()
     pass
 
+#4.2
+@app.get("/products/[id]", status_code=200)
+async def get_product():
+    pass
+
+#4.3
+@app.get("/employees", status_code=200)
+async def get_employees():
+    pass
+
+#4.4
+@app.get("/products_extended", status_code=200)
+async def get_full_product():
+    pass
+
+#4.5
+@app.get("/products/[id]/orders", status_code=200)
+async def get_orders():
+    pass
+
+#4.6
+@app.post("/categories", status_code=201)
+async def add_category():
+    pass
+
+@app.put("/categories/[id]", status_code=201)
+async def update_category():
+    pass
+
+@app.delete("/categories/[id]", status_code=200)
+async def delete_category():
+    pass
+
 
 
 
