@@ -174,7 +174,6 @@ def logged_out(is_format: Message = Depends(Message)):
     is_format.word = "Logged out"
     return is_format.return_message()
 
-#4.1
 @app.on_event("startup")
 async def startup():
     app.db_connection = sqlite3.connect("northwind.db")
@@ -188,48 +187,121 @@ async def shutdown():
 #4.1
 @app.get("/categories", status_code=200)
 async def get_categories():
+    app.db_connection.row_factory = sqlite3.Row
     cursor = app.db_connection.cursor()
-    pass
+    categories = cursor.execute("SELECT  CategoryID id, CategoryName name FROM Categories").fetchall()
+    return {
+        "categories":  categories
+    }
 
 @app.get("/customers", status_code=200)
 async def get_customers():
+    app.db_connection.row_factory = sqlite3.Row
     cursor = app.db_connection.cursor()
-    pass
+    customers = cursor.execute("SELECT CustomerID id, CompanyName name, Address || ' ' || PostalCode || ' ' || City || ' ' || Country full_address FROM Customers").fetchall()
+    return {
+        "customers": customers
+    }
 
 #4.2
-@app.get("/products/[id]", status_code=200)
-async def get_product():
-    pass
+@app.get("/products/{id}", status_code=200)
+async def get_product(id: int):
+    app.db_connection.row_factory = sqlite3.Row
+    cursor = app.db_connection.cursor()
+    data = cursor.execute("SELECT ProductID id, ProductName name FROM Products WHERE ProductID =:id",
+                    {"id": id}).fetchone()
+    if not data:
+        raise HTTPException(status_code=404, detail="Item not found")
+    return data
 
 #4.3
 @app.get("/employees", status_code=200)
-async def get_employees():
-    pass
+async def get_employees(limit: int = Query(10), offset: int = Query(0),order: str = Query("id")):
+    app.db_connection.row_factory = sqlite3.Row
+    cursor = app.db_connection.cursor()
+    correct_order = ["id", "last_name", "first_name", "city"]
+    x = order if order in correct_order else ""
+    if not x:
+        raise HTTPException(status_code=404, detail="Item not found")
+    data = cursor.execute(f'''SELECT EmployeeID id,
+                                    LastName last_name,
+                                    FirstName first_name,
+                                    City city FROM Employees
+                                    ORDER BY {x}
+                                    LIMIT :limit
+                                    OFFSET :offset''',
+                                    {"limit": limit,
+                                     "offset": offset}).fetchall()
+    return data
 
 #4.4
 @app.get("/products_extended", status_code=200)
 async def get_full_product():
-    pass
+    app.db_connection.row_factory = sqlite3.Row
+    cursor = app.db_connection.cursor()
+    data = cursor.execute('''SELECT p.ProductID id, p.ProductName name,
+	                                    c.CategoryName category, s.CompanyName supplier
+                                        FROM Products p
+                                        JOIN Categories c ON c.CategoryID = p.CategoryID
+                                        LEFT JOIN Suppliers s ON p.SupplierID = s.SupplierID
+                                        ORDER BY id;''').fetchall()
+    return data
 
 #4.5
-@app.get("/products/[id]/orders", status_code=200)
-async def get_orders():
-    pass
+@app.get("/products/{id}/orders", status_code=200)
+async def get_orders(id: int):
+    app.db_connection.row_factory = sqlite3.Row
+    cursor = app.db_connection.cursor()
+    data = cursor.execute('''SELECT o.OrderID id, c.CompanyName customer,
+	                    od.Quantity quantity,
+	                    ROUND((od.UnitPrice * od.Quantity) - (od.Discount * (od.UnitPrice * od.Quantity)), 2) total_price
+                        FROM Orders o
+                        JOIN "Order Details" od ON o.OrderID = od.OrderID
+                        JOIN Customers c ON c.CustomerID = o.CustomerID
+                        WHERE od.ProductID = ?
+                        ORDER BY id''', (id, )).fetchall()
+    if not data:
+        raise HTTPException(status_code=404, detail="Item not found")
+    return data
 
 #4.6
+class Category(BaseModel):
+    name: str
+
 @app.post("/categories", status_code=201)
-async def add_category():
-    pass
+async def add_category(category: Category):
+    cursor = app.db_connection.execute('''INSERT INTO Categories (CategoryName)
+                                        VALUES (?)
+                                        ''', (category.name, )
+    )
+    app.db_connection.commit()
+    app.db_connection.row_factory = sqlite3.Row
+    new_category_id = cursor.lastrowid
+    category = app.db_connection.execute('''SELECT CategoryID id,
+                                        CategoryName name FROM Categories
+                                        WHERE CategoryID = ?''',
+                                        (new_category_id, )).fetchone()
+    return category
 
-@app.put("/categories/[id]", status_code=201)
-async def update_category():
-    pass
+@app.put("/categories/{id}", status_code=201)
+async def update_category(id: int, category: Category):
+    cursor = app.db_connection.execute('''UPDATE Categories
+                                        SET CategoryName = ?
+                                        WHERE CategoryID = ?
+                                        ''', (category.name, id))
+    app.db_connection.commit()
+    app.db_connection.row_factory = sqlite3.Row
+    data = app.db_connection.execute('''SELECT CategoryID id, CategoryName name
+                                    FROM Categories WHERE CategoryID = ?''',
+                                    (id, )).fetchone()
 
-@app.delete("/categories/[id]", status_code=200)
-async def delete_category():
-    pass
+    return data
 
-
-
-
-
+@app.delete("/categories/{id}", status_code=200)
+async def delete_category(id: int):
+    cursor = app.db_connection.execute(
+        "DELETE FROM Categories WHERE CategoryID = ?", (id, ))
+    app.db_connection.commit()
+    if not cursor.rowcount:
+        raise HTTPException(status_code=404, detail="Item not found")
+    return {"deleted": cursor.rowcount}
