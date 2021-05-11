@@ -177,7 +177,7 @@ def logged_out(is_format: Message = Depends(Message)):
 @app.on_event("startup")
 async def startup():
     app.db_connection = sqlite3.connect("northwind.db")
-    app.db_connection.text_factory = lambda b: b.decode("cp1252", errors="ignore")#northwind specific
+    app.db_connection.text_factory = lambda b: b.decode(errors="ignore")#northwind specific
 
 
 @app.on_event("shutdown")
