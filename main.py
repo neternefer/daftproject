@@ -7,7 +7,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from hashlib import sha256, sha512
 from pydantic import BaseModel
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 class Patient(BaseModel):
     id: Optional[int] = 1
@@ -177,7 +177,7 @@ def logged_out(is_format: Message = Depends(Message)):
 @app.on_event("startup")
 async def startup():
     app.db_connection = sqlite3.connect("northwind.db")
-    app.db_connection.text_factory = lambda b: b.decode(errors="ignore")  # northwind specific
+    app.db_connection.text_factory = lambda b: b.decode("cp1252", errors="ignore")#northwind specific
 
 
 @app.on_event("shutdown")
@@ -185,20 +185,26 @@ async def shutdown():
     app.db_connection.close()
 
 #4.1
-@app.get("/categories", status_code=200)
-async def get_categories():
+def cursor():
     app.db_connection.row_factory = sqlite3.Row
     cursor = app.db_connection.cursor()
-    categories = cursor.execute("SELECT  CategoryID id, CategoryName name FROM Categories").fetchall()
+    return cursor
+
+def status(query_result: List[dict]):
+    if not query_result:
+        raise HTTPException(status_code=404, detail="Item not found")
+    return query_result
+
+@app.get("/categories", status_code=200)
+async def get_categories():
+    categories = cursor().execute("SELECT  CategoryID id, CategoryName name FROM Categories").fetchall()
     return {
         "categories":  categories
     }
 
 @app.get("/customers", status_code=200)
 async def get_customers():
-    app.db_connection.row_factory = sqlite3.Row
-    cursor = app.db_connection.cursor()
-    customers = cursor.execute("SELECT CustomerID id, CompanyName name, Address || ' ' || PostalCode || ' ' || City || ' ' || Country full_address FROM Customers").fetchall()
+    customers = cursor().execute("SELECT CustomerID id, CompanyName name, Address || ' ' || ifnull(PostalCode, '') || ' ' || City || ' ' || Country full_address FROM Customers").fetchall()
     return {
         "customers": customers
     }
@@ -206,24 +212,16 @@ async def get_customers():
 #4.2
 @app.get("/products/{id}", status_code=200)
 async def get_product(id: int):
-    app.db_connection.row_factory = sqlite3.Row
-    cursor = app.db_connection.cursor()
-    data = cursor.execute("SELECT ProductID id, ProductName name FROM Products WHERE ProductID =:id",
-                    {"id": id}).fetchone()
-    if not data:
-        raise HTTPException(status_code=404, detail="Item not found")
-    return data
+    data = cursor().execute("SELECT ProductID id, ProductName name FROM Products WHERE ProductID = ?", (id, )).fetchone()
+    return status(data)
 
 #4.3
 @app.get("/employees", status_code=200)
 async def get_employees(limit: int = Query(10), offset: int = Query(0),order: str = Query("id")):
-    app.db_connection.row_factory = sqlite3.Row
-    cursor = app.db_connection.cursor()
-    correct_order = ["id", "last_name", "first_name", "city"]
-    x = order if order in correct_order else ""
+    x = order if order in ["id", "last_name", "first_name", "city"] else ""
     if not x:
-        raise HTTPException(status_code=404, detail="Item not found")
-    data = cursor.execute(f'''SELECT EmployeeID id,
+        raise HTTPException(status_code=400, detail="Incorrect query")
+    data = cursor().execute(f'''SELECT EmployeeID id,
                                     LastName last_name,
                                     FirstName first_name,
                                     City city FROM Employees
@@ -237,9 +235,7 @@ async def get_employees(limit: int = Query(10), offset: int = Query(0),order: st
 #4.4
 @app.get("/products_extended", status_code=200)
 async def get_full_product():
-    app.db_connection.row_factory = sqlite3.Row
-    cursor = app.db_connection.cursor()
-    data = cursor.execute('''SELECT p.ProductID id, p.ProductName name,
+    data = cursor().execute('''SELECT p.ProductID id, p.ProductName name,
 	                                    c.CategoryName category, s.CompanyName supplier
                                         FROM Products p
                                         JOIN Categories c ON c.CategoryID = p.CategoryID
@@ -250,19 +246,15 @@ async def get_full_product():
 #4.5
 @app.get("/products/{id}/orders", status_code=200)
 async def get_orders(id: int):
-    app.db_connection.row_factory = sqlite3.Row
-    cursor = app.db_connection.cursor()
-    data = cursor.execute('''SELECT o.OrderID id, c.CompanyName customer,
+    data = cursor().execute('''SELECT o.OrderID id, c.CompanyName customer,
 	                    od.Quantity quantity,
-	                    ROUND((od.UnitPrice * od.Quantity) - (od.Discount * (od.UnitPrice * od.Quantity)), 2) total_price
+	                    ROUND(((od.UnitPrice * od.Quantity) - (od.Discount * (od.UnitPrice * od.Quantity))), 2) total_price
                         FROM Orders o
                         JOIN "Order Details" od ON o.OrderID = od.OrderID
                         JOIN Customers c ON c.CustomerID = o.CustomerID
                         WHERE od.ProductID = ?
                         ORDER BY id''', (id, )).fetchall()
-    if not data:
-        raise HTTPException(status_code=404, detail="Item not found")
-    return data
+    return status(data)
 
 #4.6
 class Category(BaseModel):
@@ -283,7 +275,7 @@ async def add_category(category: Category):
                                         (new_category_id, )).fetchone()
     return category
 
-@app.put("/categories/{id}", status_code=201)
+@app.put("/categories/{id}", status_code=200)
 async def update_category(id: int, category: Category):
     cursor = app.db_connection.execute('''UPDATE Categories
                                         SET CategoryName = ?
@@ -294,8 +286,7 @@ async def update_category(id: int, category: Category):
     data = app.db_connection.execute('''SELECT CategoryID id, CategoryName name
                                     FROM Categories WHERE CategoryID = ?''',
                                     (id, )).fetchone()
-
-    return data
+    return status(data)
 
 @app.delete("/categories/{id}", status_code=200)
 async def delete_category(id: int):
