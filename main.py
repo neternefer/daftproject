@@ -204,7 +204,9 @@ async def get_categories():
 
 @app.get("/customers", status_code=200)
 async def get_customers():
-    customers = cursor().execute("SELECT CustomerID id, CompanyName name, Address || ' ' || ifnull(PostalCode, '') || ' ' || City || ' ' || Country full_address FROM Customers").fetchall()
+    customers = cursor().execute('''SELECT CustomerID id, CompanyName name,
+                (COALESCE(Address, '') || " " || COALESCE(PostalCode, '') || " " || COALESCE(City, '')
+                || " " || COALESCE(Country, '')) AS full_address FROM Customers''').fetchall()
     return {
         "customers": customers
     }
@@ -230,7 +232,7 @@ async def get_employees(limit: int = Query(10), offset: int = Query(0),order: st
                                     OFFSET :offset''',
                                     {"limit": limit,
                                      "offset": offset}).fetchall()
-    return data
+    return {"employees": data}
 
 #4.4
 @app.get("/products_extended", status_code=200)
@@ -241,7 +243,7 @@ async def get_full_product():
                                         JOIN Categories c ON c.CategoryID = p.CategoryID
                                         LEFT JOIN Suppliers s ON p.SupplierID = s.SupplierID
                                         ORDER BY id;''').fetchall()
-    return data
+    return {"products_extended": data}
 
 #4.5
 @app.get("/products/{id}/orders", status_code=200)
@@ -254,7 +256,7 @@ async def get_orders(id: int):
                         JOIN Customers c ON c.CustomerID = o.CustomerID
                         WHERE od.ProductID = ?
                         ORDER BY id''', (id, )).fetchall()
-    return status(data)
+    return {"orders": status(data)}
 
 #4.6
 class Category(BaseModel):
